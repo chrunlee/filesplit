@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+
+/***
+ * 将大文件按照大小分割成小文件到指定的目录下，后缀.cutfile。
+ * 将指定目录下的.cutfile 合并到指定文件中。
+ * 文件默认10M。
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+let argv = require('minimist')(process.argv.slice(2),{
+    alias : {
+        'filepath' : 'f',
+        'folderpath' : 'd',
+        'filesize' : 's',
+        'collapse' : 'c'
+    },
+    string : ['filepath','folderpath'],
+    number : ['filesize'],
+    boolean : ['collapse'],
+    'default' : {
+        collapse : false,
+        folderpath : process.cwd(),
+        filesize : 10
+    }
+})
+if(argv.help){
+    console.log(`Usage : `);
+    console.log(`    cutfile -f d:/aaa.rar -d d:/abc/ -s 2    //将aaa.rar文件分割成2M大小的文件存储在文件夹d:/abc/中`);
+    console.log(`    cutfile -c -f d:/aaa.rar -d d:/abc/      //将d:/abc/文件夹下的.cutfile 文件合并到d:/aaa.rar文件中`);
+    process.exit(0);
+}
+
+//文件和文件夹处理
+if(!fs.existsSync(argv.folderpath) && !fs.existsSync(process.cwd(),argv.folderpath)){
+    console.log(` 文件夹:[${argv.folderpath}]不存在，请手动创建好.`)
+    return;
+}
+if(!argv.filepath || !argv.folderpath){
+    console.log(`数据填写不全，请标明文件和目录.`)
+    process.exit(0);
+}
+
+if(argv.collapse){
+    let filePath = argv.filepath;
+    if(!fs.existsSync(path.dirname(filePath))){
+        filePath = path.join(process.cwd(),filePath);
+    }
+    let folderPath = argv.folderpath;
+    if(!fs.existsSync(folderPath)){
+        folderPath = path.join(process.cwd(),folderPath);
+    }
+    //合并
+    let fileList = fs.readdirSync(folderPath);
+    //排序
+    fileList.sort((a,b)=>{
+        let an = a.replace('.cutfile',''),bn = b.replace('.cutfile','');
+        an = parseInt(an,10);
+        bn = parseInt(bn,10);
+        return an - bn;
+    });
+    for(let name in fileList){
+        let partFilePath = path.join(folderPath,fileList[name]);
+        let content = fs.readFileSync(partFilePath);
+        fs.appendFileSync(filePath,content);
+    }
+    console.log(`文件:${argv.filepath}合并完成.`)
+}else{
+    //分割
+    if(!fs.existsSync(argv.filepath) && !fs.existsSync(path.join(process.cwd(),argv.filepath))){
+        console.log(`文件:[${argv.filepath}]不存在，请检查输入.`)
+        return;
+    }
+    let filePath = argv.filepath;
+    if(!fs.existsSync(filePath)){
+        filePath = path.join(process.cwd(),argv.filepath);
+    }
+    let folderPath = argv.folderpath;
+    if(!fs.existsSync(folderPath)){
+        folderPath = path.join(process.cwd(),folderPath);
+    }
+    let rs = fs.createReadStream(filePath);
+    let chunk = [];
+    let fileCount = 0;
+    rs.on('readable',()=>{
+        while(null !== (chunk = rs.read(argv.filesize * 1024 * 1024))){
+            fs.writeFileSync(path.join(folderPath,fileCount+'.filepart'),chunk);
+            fileCount++;
+        }
+    });
+    rs.on('end',()=>{
+        console.log(`文件分割完毕:${folderPath}`)
+        process.exit(0);
+    })
+}
