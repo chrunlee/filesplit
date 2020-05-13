@@ -1,5 +1,5 @@
 {
-  "name": "filesplit",
+  "name": "cutfile",
   "version": "1.0.0",
   "description": "split big file and collapse back",
   "bin": {
